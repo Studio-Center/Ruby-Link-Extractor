@@ -14,6 +14,7 @@ class LinkScrapper
 		@links = Array.new
 		@checked_links = Hash.new
 		@error_links = Hash.new
+		@external_links = Array.new
 
 		# gather search domain
 		puts "Please enter a domain to search: (Default: #{SEARCH_DOMAIN})"
@@ -34,6 +35,7 @@ class LinkScrapper
 	def get_links
 
 		search_uri = ""
+		skip = 0
 
 		# define search uri if undefined
 		if search_uri == ""
@@ -43,46 +45,73 @@ class LinkScrapper
 				@search_uri = ""
 			else
 				# set search uri
-				search_uri = @links[@search_index][0]
+				if !@links[@search_index].nil?
+					search_uri = @links[@search_index][0]
+				else
+					# save results and exit
+					save_results
+					exit
+				end
 				# check for existing link check data
 				# check for direct link
-				if search_uri.index(/(http:|https:)/) != nil
+				if search_uri[0,5] == "http:" || search_uri[0,6] == "https:"
 					# if external link go to next link
 					if search_uri.index(@local_domain[0]) == nil
-						@search_index += 1
-						return search_uri
-					else
-						# increment search index value
-						@search_index += 1
+						@external_links.push(search_uri)
+						skip = 1	
 					end
+					# increment search index value
+					@search_index += 1
 				else
-					search_uri = "#{@search_domain}#{search_uri}"
+					# check for relative link
+					if search_uri[0] == '/'
+						search_uri[0] = ""
+					end
+
+					# check for mailto link
+					if search_uri[0,6] == "mailto"
+						skip = 1
+					else
+						search_uri = "#{@search_domain}#{search_uri}"
+					end
 					# increment search index value
 					@search_index += 1
 				end
 			end
 		end
 
-		# gather page request response
-		response = Net::HTTP.get_response(URI.parse(search_uri))
+		# check for existing uri hash index
+		if @checked_links[search_uri.to_sym]
+			skip = 1
+		end
 
-		# store response page body
-		body = response.body
+		if skip == 0
 
-		# store response code
-		code = response.code
+			# let user know which uri is currently active
+			puts search_uri
 
-		# extract all links within page
-		links_array = body.scan(/<a.*href=['"]([^"']+)['"]/)
+			# gather page request response
+			response = Net::HTTP.get_response(URI.parse(search_uri))
 
-		# combine found links with links array
-		@links.concat(links_array)
+			# store response page body
+			body = response.body
 
-		# remove duplicates
-		@links.uniq!
+			# store response code
+			code = response.code
 
-		# store results in checked hash
-		@checked_links[search_uri.to_sym] = code
+			# extract all links within page
+			links_array = body.scan(/<a.*href=['"]([^"']+)['"]/)
+
+			# combine found links with links array
+			@links.concat(links_array)
+
+			# remove duplicates
+			@links.uniq!
+
+			# store results in checked hash
+			@checked_links[search_uri.to_sym] = code
+
+		end
 
 		# iterate through found links
 		get_links
@@ -90,10 +119,19 @@ class LinkScrapper
 	end
 
 	def save_results
+		# save results
 		CSV.open("results.csv", "wb") {|csv| 
 			@checked_links.each {|key| 
 				csv << key
 			}
+		}
+		# store only unique external link values
+		@external_links.uniq!
+		# save list of external links
+		CSV.open("external-links.csv", "wb") {|csv| 
+			@external_links.each do |key, value|
+			   csv << [key]
+			end
 		}
 	end
 
@@ -101,4 +139,3 @@ end
 
 parse_page = LinkScrapper.new
 parse_page::get_links
-parse_page::save_results
