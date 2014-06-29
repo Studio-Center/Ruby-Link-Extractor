@@ -50,7 +50,7 @@ class LinkScrapper
 				else
 					# save results and exit
 					save_results
-					exit
+					return
 				end
 				# check for existing link check data
 				# check for direct link
