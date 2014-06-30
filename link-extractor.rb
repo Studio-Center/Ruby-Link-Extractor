@@ -63,16 +63,25 @@ class LinkScrapper
 					# increment search index value
 					@search_index += 1
 				else
-					# check for relative link
-					if search_uri[0] == '/'
-						search_uri[0] = ""
-					end
-
 					# check for mailto link
-					if search_uri[0,6] == "mailto"
+					if search_uri[0,7] == "mailto:"
 						skip = 1
 					else
-						search_uri = "#{@search_domain}#{search_uri}"
+						# check for relative link
+						if search_uri[0,2] != "//" && search_uri[0] == "/"
+							search_uri[0] = ""
+						end
+						# define uri string
+						if search_uri[0,2] != "//"
+							search_uri = "#{@search_domain}#{search_uri}"
+						else
+							# handle protocol agnotic link requests
+							if @search_domain[0,6] == "https:"
+								search_uri = "https:#{search_uri}"
+							else
+								search_uri = "http:#{search_uri}"
+							end
+						end
 					end
 					# increment search index value
 					@search_index += 1
@@ -85,6 +94,7 @@ class LinkScrapper
 			skip = 1
 		end
 
+		# run link scan if skip bit is not set
 		if skip == 0
 
 			# let user know which uri is currently active
@@ -102,13 +112,11 @@ class LinkScrapper
 			# extract all links within page
 			links_array = body.scan(/<a.*href=['"]([^"']+)['"]/)
 
-			# update anchors to use direct links
-			cur = 0
+			# update anchors and indirect links to use direct links
 			links_array.each { |val|
-				if val[0] == "#"
-					links_array[cur] = "#{search_uri}#{val}"
+				if val[0,7] != "mailto:" && val[0,4] != "tel:" && val[0] != "/" && val[0,5] != "http:" && val[0,6] != "https:" && val[0,2] != "//"
+					val = "#{search_uri}#{val}"
 				end
-				cur += 1
 			}
 
 			# combine found links with links array
@@ -138,7 +146,7 @@ class LinkScrapper
 		@external_links.uniq!
 		# save list of external links
 		CSV.open("external-links.csv", "wb") {|csv| 
-			@external_links.each do |key, value|
+			@external_links.each do |key|
 			   csv << [key]
 			end
 		}
