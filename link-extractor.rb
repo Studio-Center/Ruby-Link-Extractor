@@ -102,6 +102,15 @@ class LinkScrapper
 			# extract all links within page
 			links_array = body.scan(/<a.*href=['"]([^"']+)['"]/)
 
+			# update anchors to use direct links
+			cur = 0
+			links_array.each { |val|
+				if val[0] == "#"
+					links_array[cur] = "#{search_uri}#{val}"
+				end
+				cur += 1
+			}
+
 			# combine found links with links array
 			@links.concat(links_array)
 
