@@ -64,7 +64,7 @@ class LinkScrapper
 					@search_index += 1
 				else
 					# check for mailto link
-					if search_uri[0,7] == "mailto:"
+					if search_uri[0,7] == "mailto:" && search_uri[0,4] == "tel:"
 						skip = 1
 					else
 						# check for relative link
