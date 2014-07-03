@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 require 'net/http'
 require 'csv'
-require 'uri'
+
 
 # default search domain
 SEARCH_DOMAIN = "http://virginiabeachwebdevelopment.com/"
@@ -33,8 +33,13 @@ class LinkScrapper
 		@search_uri = @search_domain
 
 		# verify fomain entry includes protocol
-		if @search_uri[0,5] != "http:" || @search_uri[0,6] != "https:"
+		if @search_uri !~ /^htt(p|ps):/
 			@search_uri.insert(0, "http://")
+		end
+
+		# verify leading forward slash
+		if @search_uri[@search_uri.length-1] != '/'
+			@search_uri << '/'
 		end
 
 	end
@@ -51,46 +56,49 @@ class LinkScrapper
 				save_results
 				exit
 			end
-			# check for existing link check data
-			if @search_uri =~ URI::regexp
-				# check for direct link
-				if @search_uri[0,5] == "http:" || @search_uri[0,6] == "https:"
-					# if external link go to next link
-					if @search_uri.index(@local_domain[0]) == nil
-						@external_links.push(@search_uri)
-						@skip = 1	
-					end
-					# increment search index value
-					@search_index += 1
-				else
-					# check for mailto link
-					if @search_uri[0,7] == "mailto:" || @search_uri[0,4] == "tel:"
-						@skip = 1
-					else
-						# check for relative link
-						if @search_uri[0,2] != "//" && @search_uri[0] == "/"
-							@search_uri[0] = ""
-						end
-						# define uri string
-						if @search_uri[0,2] != "//"
-							@search_uri = "#{@search_domain}#{@search_uri}"
-						else
-							# handle protocol agnotic link requests
-							if @search_domain[0,6] == "https:"
-								@search_uri = "https:#{@search_uri}"
-							else
-								@search_uri = "http:#{@search_uri}"
-							end
-						end
-					end
-					# increment search index value
-					@search_index += 1
+
+			# check for direct link
+			if @search_uri =~ /^htt(p|ps):/
+				# if external link go to next link
+				if @search_uri.index(@local_domain[0]) == nil
+					@external_links.push(@search_uri)
+					@skip = 1	
 				end
 			else
-				# skip if invalid url
-				@skip = 1
-				@search_index += 1
+				# check for mailto link
+				if @search_uri[0,4] == "mailto:" || @search_uri[0,3] == "tel:"
+					@skip = 1
+				else
+					# check for protocol agnostic and indirect links
+					if @search_uri[0,2] == "//" || @search_uri[0,2] == "./"
+						@search_uri[0,2] = ""
+					end
+					# check for relative link
+					if @search_uri[0] == "/"
+						@search_uri[0] = ""
+					end
+					# verify uri portion is valid
+					if @search_uri !~ /^([\w]|%|#|\?)/
+						@search_index += 1
+						@skip = 1
+						puts "invalid uri #{@search_uri}"
+						return
+					end
+					# define uri string
+					if @search_uri[0,2] != "//"
+						@search_uri = "#{@search_domain}#{@search_uri}"
+					else
+						# handle protocol agnotic link requests
+						if @search_domain[0,6] == "https:"
+							@search_uri = "https:#{@search_uri}"
+						else
+							@search_uri = "http:#{@search_uri}"
+						end
+					end
+				end
 			end
+			# increment search index value
+			@search_index += 1
 		end
 	end
 
@@ -115,7 +123,7 @@ class LinkScrapper
 			puts @search_uri
 
 			# gather page request response
-			response = Net::HTTP.get_response(URI.parse(@search_uri))
+			response = Net::HTTP.get_response(URI.parse(URI.encode(@search_uri.strip)))
 
 			# store response page body
 			body = response.body
@@ -128,7 +136,7 @@ class LinkScrapper
 
 			# update anchors and indirect links to use direct links
 			links_array.each { |val|
-				if val[0] != "/" || val[0,5] != "http:" || val[0,6] != "https:" || val[0,2] != "//"
+				if val[0] != "/" || val !~ /^htt(p|ps):/ || val[0,2] != "//"
 					val = "#{@search_uri}#{val}"
 				end
 			}
