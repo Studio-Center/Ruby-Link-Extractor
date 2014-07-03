@@ -1,11 +1,12 @@
 require 'net/http'
 require 'csv'
+require 'uri'
 
 # default search domain
 SEARCH_DOMAIN = "http://virginiabeachwebdevelopment.com/"
 
+# class for grabbing and parsing domain links
 class LinkScrapper
-	attr_reader :links
 
 	def initialize
 
@@ -30,11 +31,16 @@ class LinkScrapper
 		# configure initial search uri
 		@search_uri = @search_domain
 
+		# verify fomain entry includes protocol
+		if @search_uri[0,5] != "http:" || @search_uri[0,6] != "https:"
+			@search_uri.insert(0, "http://")
+		end
+
 	end
 
 	# gather search uri
 	def get_search_uri
-
+		# do not override initial domain setting
 		if @search_iteration > 0
 			# set search uri
 			if !@links[@search_index].nil?
@@ -45,37 +51,43 @@ class LinkScrapper
 				exit
 			end
 			# check for existing link check data
-			# check for direct link
-			if @search_uri[0,5] == "http:" || @search_uri[0,6] == "https:"
-				# if external link go to next link
-				if @search_uri.index(@local_domain[0]) == nil
-					@external_links.push(@search_uri)
-					@skip = 1	
-				end
-				# increment search index value
-				@search_index += 1
-			else
-				# check for mailto link
-				if @search_uri[0,7] == "mailto:" || @search_uri[0,4] == "tel:"
-					@skip = 1
-				else
-					# check for relative link
-					if @search_uri[0,2] != "//" && @search_uri[0] == "/"
-						@search_uri[0] = ""
+			if @search_uri =~ URI::regexp
+				# check for direct link
+				if @search_uri[0,5] == "http:" || @search_uri[0,6] == "https:"
+					# if external link go to next link
+					if @search_uri.index(@local_domain[0]) == nil
+						@external_links.push(@search_uri)
+						@skip = 1	
 					end
-					# define uri string
-					if @search_uri[0,2] != "//"
-						@search_uri = "#{@search_domain}#{@search_uri}"
+					# increment search index value
+					@search_index += 1
+				else
+					# check for mailto link
+					if @search_uri[0,7] == "mailto:" || @search_uri[0,4] == "tel:"
+						@skip = 1
 					else
-						# handle protocol agnotic link requests
-						if @search_domain[0,6] == "https:"
-							@search_uri = "https:#{@search_uri}"
+						# check for relative link
+						if @search_uri[0,2] != "//" && @search_uri[0] == "/"
+							@search_uri[0] = ""
+						end
+						# define uri string
+						if @search_uri[0,2] != "//"
+							@search_uri = "#{@search_domain}#{@search_uri}"
 						else
-							@search_uri = "http:#{@search_uri}"
+							# handle protocol agnotic link requests
+							if @search_domain[0,6] == "https:"
+								@search_uri = "https:#{@search_uri}"
+							else
+								@search_uri = "http:#{@search_uri}"
+							end
 						end
 					end
+					# increment search index value
+					@search_index += 1
 				end
-				# increment search index value
+			else
+				# skip if invalid url
+				@skip = 1
 				@search_index += 1
 			end
 		end
