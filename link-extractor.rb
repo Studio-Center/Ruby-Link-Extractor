@@ -66,7 +66,7 @@ class LinkScrapper
 				end
 			else
 				# check for mailto link
-				if @search_uri[0,4] == "mailto:" || @search_uri[0,3] == "tel:"
+				if @search_uri[0,7] == "mailto:" || @search_uri[0,4] == "tel:"
 					@skip = 1
 				else
 					# check for protocol agnostic and indirect links
@@ -88,7 +88,7 @@ class LinkScrapper
 					if @search_uri[0,2] != "//"
 						@search_uri = "#{@search_domain}#{@search_uri}"
 					else
-						# handle protocol agnotic link requests
+						# handle protocol agnostic link requests
 						if @search_domain[0,6] == "https:"
 							@search_uri = "https:#{@search_uri}"
 						else
