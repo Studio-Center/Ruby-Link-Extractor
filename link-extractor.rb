@@ -17,11 +17,15 @@ class LinkScrapper
 		@links = Array.new
 		@checked_links = Hash.new
 		@error_links = Hash.new
-		@external_links = Array.new
+		@external_links = Hash.new
 
 		# gather search domain
-		puts "Please enter a domain to search: (Default: #{SEARCH_DOMAIN})"
-		@search_domain = gets.chomp
+		if !ARGV[0]
+			puts "Please enter a domain to search: (Default: #{SEARCH_DOMAIN})"
+			@search_domain = gets.chomp
+		else
+			@search_domain = ARGV[0].dup
+		end
 
 		# override with default domain if entry is left empty
 		@search_domain = SEARCH_DOMAIN if @search_domain == ""
@@ -42,6 +46,8 @@ class LinkScrapper
 			@search_uri << '/'
 		end
 
+		# start scan
+		get_links
 	end
 
 	# gather search uri
@@ -61,16 +67,30 @@ class LinkScrapper
 			if @search_uri =~ /^htt(p|ps):/
 				# if external link go to next link
 				if @search_uri.index(@local_domain[0]) == nil
-					@external_links.push(@search_uri)
+					if !@external_links[@search_uri.to_sym]
+						begin
+							response = Net::HTTP.get_response(URI.parse(URI.encode(@search_uri)))
+							rescode = response.code
+						rescue => ex
+							rescode = 408
+						end
+						@external_links[@search_uri.to_sym] = rescode
+					end
 					@skip = 1	
 				end
 			else
+
+				# skip various files
+				if @search_uri =~ /[^\s]+(\.(?i)flv|gif|jpg|png|mp3|mp4|m4v|pdf|zip|txt)$/
+					@skip = 1
+				end
+
 				# check for mailto link
 				if @search_uri[0,7] == "mailto:" || @search_uri[0,4] == "tel:"
 					@skip = 1
 				else
 					# check for protocol agnostic and indirect links
-					if @search_uri[0,2] == "//" || @search_uri[0,2] == "./"
+					if @search_uri[0,2] == "//" || @search_uri[0,2] == "./" || @search_uri[0,3] == "../"
 						@search_uri[0,2] = ""
 					end
 					# check for relative link
@@ -132,7 +152,7 @@ class LinkScrapper
 			code = response.code
 
 			# extract all links within page
-			links_array = body.scan(/<a.*href=['"]([^"']+)['"]/)
+			links_array = body.scan(/<a[^>]+href\s*=\s*["']([^"']+)["'][^>]*>(.*?)<\/a>/mi)
 
 			# update anchors and indirect links to use direct links
 			links_array.each { |val|
@@ -166,17 +186,15 @@ class LinkScrapper
 				csv << key
 			}
 		}
-		# store only unique external link values
-		@external_links.uniq!
+
 		# save list of external links
 		CSV.open("external-links.csv", "wb") {|csv| 
 			@external_links.each do |key|
-			   csv << [key]
+			   csv << key
 			end
 		}
 	end
 
 end
 
-parse_page = LinkScrapper.new
-parse_page::get_links
+LinkScrapper.new
