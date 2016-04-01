@@ -1,7 +1,5 @@
-#!/usr/bin/env ruby
 require 'net/http'
 require 'csv'
-
 
 # default search domain
 SEARCH_DOMAIN = "http://virginiabeachwebdevelopment.com/"
@@ -69,14 +67,17 @@ class LinkScrapper
 				if @search_uri.index(@local_domain[0]) == nil
 					if !@external_links[@search_uri.to_sym]
 						begin
+							t1 = Time.now
 							response = Net::HTTP.get_response(URI.parse(URI.encode(@search_uri)))
+							t2 = Time.now
+							delta = t2 - t1
 							rescode = response.code
 						rescue => ex
 							rescode = 408
 						end
-						@external_links[@search_uri.to_sym] = rescode
+						@external_links[@search_uri.to_sym] = {res: rescode, time: delta}
 					end
-					@skip = 1	
+					@skip = 1
 				end
 			else
 
@@ -143,32 +144,40 @@ class LinkScrapper
 			puts @search_uri
 
 			# gather page request response
-			response = Net::HTTP.get_response(URI.parse(URI.encode(@search_uri.strip)))
+			begin
+				t1 = Time.now
+				response = Net::HTTP.get_response(URI.parse(URI.encode(@search_uri.strip)))
+				t2 = Time.now
+				delta = t2 - t1
 
-			# store response page body
-			body = response.body
+				# store response page body
+				body = response.body
 
-			# store response code
-			code = response.code
+				# store response code
+				code = response.code
 
-			# extract all links within page
-			links_array = body.scan(/<a[^>]+href\s*=\s*["']([^"']+)["'][^>]*>(.*?)<\/a>/mi)
+				# extract all links within page
+				links_array = body.scan(/<a[^>]+href\s*=\s*["']([^"']+)["'][^>]*>(.*?)<\/a>/mi)
 
-			# update anchors and indirect links to use direct links
-			links_array.each { |val|
-				if val[0] != "/" || val !~ /^htt(p|ps):/ || val[0,2] != "//"
-					val = "#{@search_uri}#{val}"
-				end
-			}
+				# update anchors and indirect links to use direct links
+				links_array.each { |val|
+					if val[0] != "/" || val !~ /^htt(p|ps):/ || val[0,2] != "//"
+						val = "#{@search_uri}#{val}"
+					end
+				}
 
-			# combine found links with links array
-			@links.concat(links_array)
+				# combine found links with links array
+				@links.concat(links_array)
 
-			# remove duplicates
-			@links.uniq!
+				# remove duplicates
+				@links.uniq!
+
+			rescue => ex
+				rescode = 408
+			end
 
 			# store results in checked hash
-			@checked_links[@search_uri.to_sym] = code
+			@checked_links[@search_uri.to_sym] = {res: code, time: delta}
 
 		end
 
@@ -181,20 +190,18 @@ class LinkScrapper
 	# save results to csvs
 	def save_results
 		# save search results
-		CSV.open("results.csv", "wb") {|csv| 
-			@checked_links.each {|key| 
-				csv << key
+		CSV.open("results.csv", "wb") {|csv|
+			@checked_links.each {|key|
+				csv << [key[0], key[1][:res], key[1][:time]]
 			}
 		}
 
 		# save list of external links
-		CSV.open("external-links.csv", "wb") {|csv| 
+		CSV.open("external-links.csv", "wb") {|csv|
 			@external_links.each do |key|
-			   csv << key
+			   csv << [key[0], key[1][:res], key[1][:time]]
 			end
 		}
 	end
 
 end
-
-LinkScrapper.new
