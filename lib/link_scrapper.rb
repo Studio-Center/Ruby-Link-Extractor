@@ -2,12 +2,12 @@ require 'net/http'
 require 'csv'
 
 # default search domain
-SEARCH_DOMAIN = "http://virginiabeachwebdevelopment.com/"
+SEARCH_DOMAIN = 'http://virginiabeachwebdevelopment.com/'
 
 # class for grabbing and parsing domain links
 class LinkScrapper
 
-	def initialize
+	def initialize(search_domain = SEARCH_DOMAIN)
 
 		# init link store hashes
 		@search_index = 0
@@ -18,15 +18,17 @@ class LinkScrapper
 		@external_links = Hash.new
 
 		# gather search domain
-		if !ARGV[0]
+		if ARGV[0]
+			@search_domain = ARGV[0].dup
+		elsif search_domain
+			@search_domain = search_domain
+		elsif search_domain == 'ue'
 			puts "Please enter a domain to search: (Default: #{SEARCH_DOMAIN})"
 			@search_domain = gets.chomp
-		else
-			@search_domain = ARGV[0].dup
 		end
 
 		# override with default domain if entry is left empty
-		@search_domain = SEARCH_DOMAIN if @search_domain == ""
+		@search_domain = SEARCH_DOMAIN if @search_domain == ''
 
 		# get and store local domain string
 		@local_domain = @search_domain.match(/\w+\.\w+(?=\/|\s|$)/)
@@ -34,9 +36,9 @@ class LinkScrapper
 		# configure initial search uri
 		@search_uri = @search_domain
 
-		# verify fomain entry includes protocol
+		# verify domain entry includes protocol
 		if @search_uri !~ /^htt(p|ps):/
-			@search_uri.insert(0, "http://")
+			@search_uri.insert(0, 'http://')
 		end
 
 		# verify leading forward slash
@@ -87,16 +89,16 @@ class LinkScrapper
 				end
 
 				# check for mailto link
-				if @search_uri[0,7] == "mailto:" || @search_uri[0,4] == "tel:"
+				if @search_uri[0,7] == 'mailto:' || @search_uri[0,4] == 'tel:'
 					@skip = 1
 				else
 					# check for protocol agnostic and indirect links
-					if @search_uri[0,2] == "//" || @search_uri[0,2] == "./" || @search_uri[0,3] == "../"
+					if @search_uri[0,2] == '//' || @search_uri[0,2] == './' || @search_uri[0,3] == '../'
 						@search_uri[0,2] = ""
 					end
 					# check for relative link
-					if @search_uri[0] == "/"
-						@search_uri[0] = ""
+					if @search_uri[0] == '/'
+						@search_uri[0] = ''
 					end
 					# verify uri portion is valid
 					if @search_uri !~ /^([\w]|%|#|\?)/
@@ -106,11 +108,11 @@ class LinkScrapper
 						return
 					end
 					# define uri string
-					if @search_uri[0,2] != "//"
+					if @search_uri[0,2] != '//'
 						@search_uri = "#{@search_domain}#{@search_uri}"
 					else
 						# handle protocol agnostic link requests
-						if @search_domain[0,6] == "https:"
+						if @search_domain[0,6] == 'https:'
 							@search_uri = "https:#{@search_uri}"
 						else
 							@search_uri = "http:#{@search_uri}"
@@ -161,7 +163,7 @@ class LinkScrapper
 
 				# update anchors and indirect links to use direct links
 				links_array.each { |val|
-					if val[0] != "/" || val !~ /^htt(p|ps):/ || val[0,2] != "//"
+					if val[0] != '/' || val !~ /^htt(p|ps):/ || val[0,2] != '//'
 						val = "#{@search_uri}#{val}"
 					end
 				}
@@ -190,14 +192,14 @@ class LinkScrapper
 	# save results to csvs
 	def save_results
 		# save search results
-		CSV.open("results.csv", "wb") {|csv|
+		CSV.open('results.csv', 'wb') {|csv|
 			@checked_links.each {|key|
 				csv << [key[0], key[1][:res], key[1][:time]]
 			}
 		}
 
 		# save list of external links
-		CSV.open("external-links.csv", "wb") {|csv|
+		CSV.open('external-links.csv', 'wb') {|csv|
 			@external_links.each do |key|
 			   csv << [key[0], key[1][:res], key[1][:time]]
 			end
