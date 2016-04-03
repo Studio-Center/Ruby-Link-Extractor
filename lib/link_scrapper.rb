@@ -20,11 +20,11 @@ class LinkScrapper
 		# gather search domain
 		if ARGV[0]
 			@search_domain = ARGV[0].dup
-		elsif search_domain
-			@search_domain = search_domain
 		elsif search_domain == 'ue'
 			puts "Please enter a domain to search: (Default: #{SEARCH_DOMAIN})"
 			@search_domain = gets.chomp
+		elsif search_domain
+			@search_domain = search_domain
 		end
 
 		# override with default domain if entry is left empty
