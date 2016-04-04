@@ -7,9 +7,15 @@ SEARCH_DOMAIN = 'http://virginiabeachwebdevelopment.com/'
 # class for grabbing and parsing domain links
 class LinkScrapper
 
-	def initialize(search_domain = SEARCH_DOMAIN)
+	def initialize(settings)
+
+		# available default settings
+		# domain: domain to be searched
+		# verbose: prints output as the script goes along
+		# results: hash or csv
 
 		# init link store hashes
+		@settings = settings;
 		@search_index = 0
 		@search_iteration = 0
 		@links = Array.new
@@ -20,11 +26,11 @@ class LinkScrapper
 		# gather search domain
 		if ARGV[0]
 			@search_domain = ARGV[0].dup
-		elsif search_domain == 'ue'
+		elsif @settings[:domain] == 'ue'
 			puts "Please enter a domain to search: (Default: #{SEARCH_DOMAIN})"
 			@search_domain = gets.chomp
-		elsif search_domain
-			@search_domain = search_domain
+		elsif @settings[:domain]
+			@search_domain = @settings[:domain]
 		end
 
 		# override with default domain if entry is left empty
@@ -59,12 +65,17 @@ class LinkScrapper
 				@search_uri = @links[@search_index][0].chomp
 			else
 				# save results and exit
-				save_results
+				if @settings[:results] == 'csv'
+					save_results
+				else
+					return { checked_links: @checked_links, error_links: @error_links, external_links: @external_links}
+				end
 				exit
 			end
 
 			# check for direct link
 			if @search_uri =~ /^htt(p|ps):/
+
 				# if external link go to next link
 				if @search_uri.index(@local_domain[0]) == nil
 					if !@external_links[@search_uri.to_sym]
@@ -73,11 +84,11 @@ class LinkScrapper
 							response = Net::HTTP.get_response(URI.parse(URI.encode(@search_uri)))
 							t2 = Time.now
 							delta = t2 - t1
-							rescode = response.code
+							code = response.code
 						rescue => ex
-							rescode = 408
+							code = 408
 						end
-						@external_links[@search_uri.to_sym] = {res: rescode, time: delta}
+						@external_links[@search_uri.to_sym] = {res: code, time: delta}
 					end
 					@skip = 1
 				end
@@ -93,8 +104,17 @@ class LinkScrapper
 					@skip = 1
 				else
 					# check for protocol agnostic and indirect links
-					if @search_uri[0,2] == '//' || @search_uri[0,2] == './' || @search_uri[0,3] == '../'
-						@search_uri[0,2] = ""
+					case @search_uri[0,1]
+					when '.'
+						@search_uri[0,1] = ''
+					end
+					case @search_uri[0,2]
+					when '//', './', '..'
+						@search_uri[0,2] = ''
+					end
+					case @search_uri[0,3]
+					when '../'
+						@search_uri[0,3] = ''
 					end
 					# check for relative link
 					if @search_uri[0] == '/'
@@ -104,7 +124,8 @@ class LinkScrapper
 					if @search_uri !~ /^([\w]|%|#|\?)/
 						@search_index += 1
 						@skip = 1
-						puts "invalid uri #{@search_uri}"
+						@error_links[@search_uri] = ''
+						puts "invalid uri #{@search_uri}" if @settings[:verbose]
 						return
 					end
 					# define uri string
@@ -143,7 +164,7 @@ class LinkScrapper
 		if @skip == 0
 
 			# let user know which uri is currently active
-			puts @search_uri
+			puts @search_uri if @settings[:verbose]
 
 			# gather page request response
 			begin
@@ -193,15 +214,20 @@ class LinkScrapper
 	def save_results
 		# save search results
 		CSV.open('results.csv', 'wb') {|csv|
-			@checked_links.each {|key|
-				csv << [key[0], key[1][:res], key[1][:time]]
+			@checked_links.each {|link|
+				csv << [link[0], link[1][:res], link[1][:time]]
 			}
 		}
-
 		# save list of external links
 		CSV.open('external-links.csv', 'wb') {|csv|
-			@external_links.each do |key|
-			   csv << [key[0], key[1][:res], key[1][:time]]
+			@external_links.each do |link|
+			   csv << [link[0], link[1][:res], link[1][:time]]
+			end
+		}
+		# save list of invalid links
+		CSV.open('invalid.csv', 'wb') {|csv|
+			@error_links.each do |link|
+			   csv << link
 			end
 		}
 	end
