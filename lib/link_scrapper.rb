@@ -19,6 +19,7 @@ class LinkScrapper
 		@search_index = 0
 		@search_iteration = 0
 		@links = Array.new
+		@link_parents = Hash.new
 		@checked_links = Hash.new
 		@error_links = Hash.new
 		@external_links = Hash.new
@@ -184,9 +185,19 @@ class LinkScrapper
 
 				# update anchors and indirect links to use direct links
 				links_array.each { |val|
-					if val[0] != '/' || val !~ /^htt(p|ps):/ || val[0,2] != '//'
-						val = "#{@search_uri}#{val}"
+					if (val[0][0,2] == "//" || val[0][0] == "/" || val[0][0,3] == "../") && val[0] !~ /^htt(p|ps):/
+						if val[0][0,3] == "../"
+							val[0][0,3] = ""
+						end
+						if val[0][0,2] == "//"
+							val[0][0,2] = ""
+						end
+						if val[0][0] == "/"
+							val[0][0] = ""
+						end
+						val[0] = "#{@search_domain}#{val[0]}"
 					end
+					@link_parents[val[0].chomp.to_sym] = @search_uri.strip
 				}
 
 				# combine found links with links array
@@ -200,7 +211,7 @@ class LinkScrapper
 			end
 
 			# store results in checked hash
-			@checked_links[@search_uri.to_sym] = {res: code, time: delta}
+			@checked_links[@search_uri.to_sym] = {res: code, time: delta, parent: @link_parents[@search_uri.to_sym]}
 
 		end
 
@@ -215,13 +226,13 @@ class LinkScrapper
 		# save search results
 		CSV.open('results.csv', 'wb') {|csv|
 			@checked_links.each {|link|
-				csv << [link[0], link[1][:res], link[1][:time]]
+				csv << [link[0], link[1][:res], link[1][:time], link[1][:parent]]
 			}
 		}
 		# save list of external links
 		CSV.open('external-links.csv', 'wb') {|csv|
 			@external_links.each do |link|
-			   csv << [link[0], link[1][:res], link[1][:time]]
+			   csv << [link[0], link[1][:res], link[1][:time], link[1][:parent]]
 			end
 		}
 		# save list of invalid links
