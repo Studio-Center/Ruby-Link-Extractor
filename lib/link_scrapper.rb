@@ -82,7 +82,7 @@ class LinkScrapper
 					if !@external_links[@search_uri.to_sym]
 						begin
 							t1 = Time.now
-							response = Net::HTTP.get_response(URI.parse(URI.encode(@search_uri)))
+							response = Net::HTTP.get_response(URI.parse(@search_uri))
 							t2 = Time.now
 							delta = t2 - t1
 							code = response.code
@@ -170,7 +170,7 @@ class LinkScrapper
 			# gather page request response
 			begin
 				t1 = Time.now
-				response = Net::HTTP.get_response(URI.parse(URI.encode(@search_uri.strip)))
+				response = Net::HTTP.get_response(URI.parse(@search_uri.strip))
 				t2 = Time.now
 				delta = t2 - t1
 
@@ -184,7 +184,8 @@ class LinkScrapper
 				links_array = body.scan(/<a[^>]+href\s*=\s*["']([^"']+)["'][^>]*>(.*?)<\/a>/mi)
 
 				# update anchors and indirect links to use direct links
-				links_array.each { |val|
+				links_array.each_with_index { |val, index|
+					skip = 0
 					if (val[0][0,2] == "//" || val[0][0] == "/" || val[0][0,3] == "../") && val[0] !~ /^htt(p|ps):/
 						if val[0][0,3] == "../"
 							val[0][0,3] = ""
@@ -197,7 +198,16 @@ class LinkScrapper
 						end
 						val[0] = "#{@search_domain}#{val[0]}"
 					end
-					@link_parents[val[0].chomp.to_sym] = @search_uri.strip
+					@links.each { |lnk|
+						if val[0] == lnk[0]
+							skip = 1
+						end
+					}
+					if skip == 0
+						@link_parents[val[0].chomp.to_sym] = @search_uri.strip
+					else
+						val.delete_at(index)
+					end
 				}
 
 				# combine found links with links array
